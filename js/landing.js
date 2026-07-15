@@ -5,7 +5,7 @@
 const FAQ_ITEMS = [
   {
     q: "Est-ce un site officiel d'une compagnie aérienne ou d'une école de pilotage ?",
-    a: "Non. AeroPsy est un outil d'entraînement indépendant, non affilié à une compagnie aérienne, école de pilotage ou organisme de sélection. Il prépare au format générique des tests psychotechniques utilisés dans les sélections pilote (PSY0), à partir de contenu original.",
+    a: "Non. PsyZero est un outil d'entraînement indépendant, non affilié à une compagnie aérienne, école de pilotage ou organisme de sélection. Il prépare au format générique des tests psychotechniques utilisés dans les sélections pilote (PSY0), à partir de contenu original.",
   },
   {
     q: "Combien de temps faut-il s'entraîner avant une sélection ?",

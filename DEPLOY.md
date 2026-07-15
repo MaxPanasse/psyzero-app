@@ -1,112 +1,64 @@
-# Déployer PSY0 Trainer sur un VPS Hostinger
+# Déployer PsyZero sur Hostinger (app Node.js + MySQL)
 
-## 1. Se connecter au VPS en SSH
+Ton hébergement Hostinger (plan Business) a une fonctionnalité **Node.js App** qui se connecte directement à GitHub et redéploie automatiquement à chaque push — pas de VPS, pas de SSH, pas de nginx/pm2 à gérer à la main. C'est le même système que celui déjà utilisé pour `panasse.club`.
 
-Depuis ton Mac :
-```
-ssh root@TON_IP_VPS
-```
-(identifiants dans hPanel → VPS → vue d'ensemble)
+Le stockage (comptes + progression) utilise une vraie base **MySQL** plutôt que des fichiers, parce que le dossier de l'appli est reconstruit à neuf à chaque déploiement Git — des fichiers JSON locaux seraient effacés à chaque mise à jour du code. En local (sur ton Mac), sans base configurée, l'appli continue d'utiliser des fichiers JSON automatiquement — aucune installation MySQL locale n'est nécessaire pour développer.
 
-## 2. Installer Node.js (si pas déjà présent)
+## 1. Créer la base de données MySQL
 
-```
-node -v
-```
-S'il n'existe pas ou est trop vieux (< 18) :
-```
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash -
-sudo apt-get install -y nodejs
-```
+Dans hPanel → ton site → **Bases de données → Gestion** :
+1. Choisis un nom de base et un nom d'utilisateur (ou laisse les valeurs proposées, du type `u421821389_xxx`).
+2. Définis un mot de passe fort, clique sur **Créer**.
+3. Note ces 4 informations, elles serviront de variables d'environnement :
+   - Hôte (souvent `localhost` pour une base sur le même compte — vérifie la valeur exacte affichée après création)
+   - Nom de la base
+   - Nom d'utilisateur
+   - Mot de passe
 
-## 3. Envoyer les fichiers du projet
+## 2. Créer l'application Node.js reliée à GitHub
 
-Depuis ton Mac (pas depuis le VPS), à la racine de `psy0-trainer/` :
-```
-rsync -avz --exclude node_modules --exclude data \
-  "/Users/maximelecru/Documents/Claude Code/psy0-trainer/" \
-  root@TON_IP_VPS:/var/www/psy0-trainer/
-```
-(`node_modules` et `data/` ne doivent jamais être copiés depuis ton Mac — `node_modules` sera réinstallé sur le serveur, et `data/` contient les comptes/mots de passe, tu ne veux pas les écraser à chaque déploiement.)
+Dans hPanel → **Sites web** → ton plan Business → **Ajouter un site web** (ou l'équivalent "Créer une application Node.js") :
+1. Connecte le compte GitHub s'il ne l'est pas déjà (bouton "Connecté avec GitHub" visible sur le tableau de bord de panasse.club — probablement déjà lié).
+2. Choisis le dépôt `MaxPanasse/aeropsy`, branche `main`.
+3. Framework : **Express**. Fichier/point d'entrée : `server.js`. Répertoire racine : `./`.
+4. Version Node : la plus récente proposée (22.x).
+5. Active le **déploiement automatique** (comme sur panasse.club) pour que chaque `git push` redéploie tout seul.
 
-## 4. Installer les dépendances sur le VPS
+## 3. Configurer les variables d'environnement
 
-```
-cd /var/www/psy0-trainer
-npm install --production
-```
+Dans la section **Variables d'environnement** de l'application, ajoute :
 
-## 5. Garder le serveur actif en permanence (pm2)
+| Variable | Valeur |
+|---|---|
+| `DB_HOST` | l'hôte noté à l'étape 1 |
+| `DB_USER` | l'utilisateur MySQL noté à l'étape 1 |
+| `DB_PASSWORD` | le mot de passe MySQL noté à l'étape 1 |
+| `DB_NAME` | le nom de la base noté à l'étape 1 |
+| `JWT_SECRET` | une longue chaîne aléatoire (génère-la avec `openssl rand -hex 48` dans un terminal, ou demande-moi de la générer) |
 
-```
-sudo npm install -g pm2
-pm2 start server.js --name psy0-trainer
-pm2 save
-pm2 startup   # suit les instructions affichées pour démarrer au boot du VPS
-```
+**Important** : `JWT_SECRET` est obligatoire dès que `DB_HOST` est défini — le serveur refuse de démarrer sans lui plutôt que d'improviser un secret non fiable. Garde une copie de cette valeur en lieu sûr : la changer déconnecterait tous les comptes existants.
 
-Commandes utiles ensuite :
-- `pm2 logs psy0-trainer` — voir les logs
-- `pm2 restart psy0-trainer` — redémarrer après une mise à jour
-- `pm2 status` — vérifier que ça tourne
+## 4. Déployer
 
-## 6. Exposer le site sur ton domaine (nginx + HTTPS)
+Clique sur **"Redéployer"** (ou attends le déploiement automatique après le prochain `git push`). Le journal de déploiement doit afficher l'installation des dépendances (`npm install`, qui inclut `mysql2`) puis le démarrage réussi.
 
-```
-sudo apt-get install -y nginx certbot python3-certbot-nginx
-```
+## 5. Vérifier
 
-Crée `/etc/nginx/sites-available/psy0-trainer` :
-```nginx
-server {
-    listen 80;
-    server_name tondomaine.com;
-
-    location / {
-        proxy_pass http://127.0.0.1:4173;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
-Puis :
-```
-sudo ln -s /etc/nginx/sites-available/psy0-trainer /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d tondomaine.com
-```
-Certbot configure le HTTPS et renouvelle automatiquement le certificat.
-
-## 7. Firewall
-
-```
-sudo ufw allow 'Nginx Full'
-sudo ufw allow OpenSSH
-sudo ufw enable
-```
-Le port 4173 (Node) n'a pas besoin d'être ouvert publiquement — seul nginx (80/443) doit l'être, il fait relais vers Node en interne.
-
-## 8. Vérifier
-
-Va sur `https://tondomaine.com`, crée un compte de test, fais une session d'entraînement, vérifie que `data/states/<uuid>.json` se crée bien sur le serveur :
-```
-ls /var/www/psy0-trainer/data/states/
-```
+1. Va sur ton domaine, crée un compte de test.
+2. Dans hPanel → **Bases de données → phpMyAdmin**, ouvre ta base : une table `users` doit contenir la ligne de ce compte, et une table `states` doit apparaître après une première session d'entraînement.
+3. Repousse un commit anodin (ou clique "Redéployer") et vérifie que le compte de test existe toujours après — c'est la preuve que les données survivent bien aux redéploiements.
 
 ## Mettre à jour le site plus tard
 
-Depuis ton Mac, après avoir modifié le code ici :
+Depuis ton Mac :
 ```
-rsync -avz --exclude node_modules --exclude data \
-  "/Users/maximelecru/Documents/Claude Code/psy0-trainer/" \
-  root@TON_IP_VPS:/var/www/psy0-trainer/
-ssh root@TON_IP_VPS "cd /var/www/psy0-trainer && npm install --production && pm2 restart psy0-trainer"
+git add -A
+git commit -m "Description du changement"
+git push
 ```
+Si le déploiement automatique est activé, c'est tout — Hostinger redéploie tout seul en quelques dizaines de secondes. Sinon, reclique sur "Redéployer" dans hPanel.
 
 ## Limites à connaître
 
-Ce backend est volontairement simple (adapté à un usage personnel / petit nombre de comptes) :
-- Stockage par fichiers JSON, pas de vraie base de données — largement suffisant à cette échelle, mais ne scale pas à des milliers d'utilisateurs.
-- Pas de récupération de mot de passe oublié, pas de vérification d'email, pas de limitation anti-bruteforce sur `/api/login`.
-- Le secret JWT est généré et stocké automatiquement dans `data/.jwt_secret` au premier lancement — ne supprime jamais ce fichier une fois en prod (ça déconnecterait tous les comptes), et ne le copie jamais publiquement.
+- Pas de récupération de mot de passe oublié, pas de vérification d'email, pas de limitation anti-bruteforce sur `/api/login` — acceptable à petite échelle, à muscler avant une grosse audience.
+- `JWT_SECRET` doit être configuré manuellement en production (volontaire — voir étape 3) ; en local sans base MySQL configurée, un secret est généré et stocké automatiquement dans `data/.jwt_secret` pour le confort du développement.
