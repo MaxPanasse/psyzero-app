@@ -76,9 +76,12 @@ function schedulePush() {
 async function pushState() {
   if (!getAuthToken()) return;
   try {
+    // The state is double-encoded as a single JSON string (rather than sent as
+    // a wide multi-key object) because some hosting WAFs block PUT bodies past
+    // a certain top-level key count — a single string value sidesteps that.
     const result = await apiRequest("/api/state", {
       method: "PUT",
-      body: JSON.stringify({ state: STATE, updatedAt: STATE.updatedAt }),
+      body: JSON.stringify({ stateJson: JSON.stringify(STATE), updatedAt: STATE.updatedAt }),
     });
     if (!result.accepted) {
       // Server already had newer data (pushed from another device) — adopt it.

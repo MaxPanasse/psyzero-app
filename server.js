@@ -90,8 +90,14 @@ async function main() {
   });
 
   app.put("/api/state", requireAuth, async (req, res) => {
-    const { state, updatedAt } = req.body;
-    if (!state || typeof updatedAt !== "number") return res.status(400).json({ error: "Requête invalide." });
+    const { stateJson, updatedAt } = req.body;
+    if (!stateJson || typeof updatedAt !== "number") return res.status(400).json({ error: "Requête invalide." });
+    let state;
+    try {
+      state = JSON.parse(stateJson);
+    } catch (e) {
+      return res.status(400).json({ error: "État invalide." });
+    }
 
     const existing = await db.readState(req.userId);
     if (existing && existing.updatedAt > updatedAt) {
