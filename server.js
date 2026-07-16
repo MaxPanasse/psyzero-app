@@ -25,7 +25,7 @@ function getJwtSecret() {
   return secret;
 }
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
 const app = express();
 app.use(express.json({ limit: "512kb" }));
@@ -41,33 +41,33 @@ async function main() {
   const JWT_SECRET = getJwtSecret();
 
   app.post("/api/register", async (req, res) => {
-    const email = String(req.body.email || "").trim().toLowerCase();
+    const username = String(req.body.username || "").trim().toLowerCase();
     const password = String(req.body.password || "");
-    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: "Adresse email invalide." });
+    if (!USERNAME_RE.test(username)) return res.status(400).json({ error: "Pseudo invalide (3 à 20 caractères : lettres, chiffres, underscore)." });
     if (password.length < 8) return res.status(400).json({ error: "Le mot de passe doit faire au moins 8 caractères." });
 
-    if (await db.findUserByEmail(email)) return res.status(409).json({ error: "Un compte existe déjà avec cet email." });
+    if (await db.findUserByUsername(username)) return res.status(409).json({ error: "Ce pseudo est déjà pris." });
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = { id: crypto.randomUUID(), email, passwordHash, createdAt: new Date().toISOString() };
+    const user = { id: crypto.randomUUID(), username, passwordHash, createdAt: new Date().toISOString() };
     await db.createUser(user);
 
     const token = jwt.sign({ uid: user.id }, JWT_SECRET, { expiresIn: TOKEN_TTL });
-    res.json({ token, email });
+    res.json({ token, username });
   });
 
   app.post("/api/login", async (req, res) => {
-    const email = String(req.body.email || "").trim().toLowerCase();
+    const username = String(req.body.username || "").trim().toLowerCase();
     const password = String(req.body.password || "");
 
-    const user = await db.findUserByEmail(email);
-    if (!user) return res.status(401).json({ error: "Email ou mot de passe incorrect." });
+    const user = await db.findUserByUsername(username);
+    if (!user) return res.status(401).json({ error: "Pseudo ou mot de passe incorrect." });
 
     const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) return res.status(401).json({ error: "Email ou mot de passe incorrect." });
+    if (!ok) return res.status(401).json({ error: "Pseudo ou mot de passe incorrect." });
 
     const token = jwt.sign({ uid: user.id }, JWT_SECRET, { expiresIn: TOKEN_TTL });
-    res.json({ token, email });
+    res.json({ token, username });
   });
 
   function requireAuth(req, res, next) {

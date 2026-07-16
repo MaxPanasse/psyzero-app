@@ -1,22 +1,22 @@
 /* ============================================================
-   auth.js — email/password accounts + background multi-device sync
+   auth.js — username/password accounts + background multi-device sync
    ============================================================ */
 
 const AUTH_TOKEN_KEY = "psy0trainer_auth_token";
-const AUTH_EMAIL_KEY = "psy0trainer_auth_email";
+const AUTH_USERNAME_KEY = "psy0trainer_auth_username";
 
 let onAuthReady = null;
 let syncTimer = null;
 
 function getAuthToken() { return localStorage.getItem(AUTH_TOKEN_KEY); }
-function getAuthEmail() { return localStorage.getItem(AUTH_EMAIL_KEY); }
-function setAuthSession(token, email) {
+function getAuthUsername() { return localStorage.getItem(AUTH_USERNAME_KEY); }
+function setAuthSession(token, username) {
   localStorage.setItem(AUTH_TOKEN_KEY, token);
-  localStorage.setItem(AUTH_EMAIL_KEY, email);
+  localStorage.setItem(AUTH_USERNAME_KEY, username);
 }
 function clearAuthSession() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
-  localStorage.removeItem(AUTH_EMAIL_KEY);
+  localStorage.removeItem(AUTH_USERNAME_KEY);
 }
 
 async function apiRequest(path, options = {}) {
@@ -139,7 +139,7 @@ function renderAuthScreen(mode = "login", errorMsg = "") {
       <p class="muted center">Tes données sont synchronisées automatiquement sur tous tes appareils.</p>
       ${errorMsg ? `<div class="feedback-box incorrect" style="margin-bottom:14px;">${errorMsg}</div>` : ""}
       <form id="auth-form" style="display:flex; flex-direction:column; gap:12px;">
-        <input type="email" id="auth-email" class="text-input" placeholder="Email" autocomplete="email" required>
+        <input type="text" id="auth-username" class="text-input" placeholder="Pseudo" autocomplete="username" required minlength="3" maxlength="20" pattern="[a-zA-Z0-9_]+">
         <input type="password" id="auth-password" class="text-input" placeholder="Mot de passe (8 caractères min.)" autocomplete="${isLogin ? "current-password" : "new-password"}" required minlength="8">
         <button type="submit" class="btn btn-primary btn-block" id="auth-submit">${isLogin ? "Se connecter" : "Créer mon compte"}</button>
       </form>
@@ -162,15 +162,15 @@ function renderAuthScreen(mode = "login", errorMsg = "") {
 
   root.querySelector("#auth-form").onsubmit = async (e) => {
     e.preventDefault();
-    const email = root.querySelector("#auth-email").value.trim();
+    const username = root.querySelector("#auth-username").value.trim();
     const password = root.querySelector("#auth-password").value;
     const submitBtn = root.querySelector("#auth-submit");
     submitBtn.disabled = true;
     submitBtn.textContent = "…";
     try {
       const endpoint = isLogin ? "/api/login" : "/api/register";
-      const result = await apiRequest(endpoint, { method: "POST", body: JSON.stringify({ email, password }) });
-      setAuthSession(result.token, result.email);
+      const result = await apiRequest(endpoint, { method: "POST", body: JSON.stringify({ username, password }) });
+      setAuthSession(result.token, result.username);
       if (isLogin) STATE = defaultState(); // don't let another account's local cache leak in
       await pullAndReconcile();
       setChromeVisible(true);

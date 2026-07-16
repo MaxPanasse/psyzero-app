@@ -645,7 +645,7 @@ function renderProfile(root) {
     <div class="section-title">Compte</div>
     <div class="card space-between flex-wrap" style="gap:12px;">
       <div>
-        <div style="font-weight:700;">${getAuthEmail() || "—"}</div>
+        <div style="font-weight:700;">${getAuthUsername() || "—"}</div>
         <div class="muted" style="font-size:0.82rem;">Synchronisé automatiquement sur tous tes appareils connectés à ce compte.</div>
       </div>
       <button class="btn btn-secondary" id="logout-btn">Se déconnecter</button>

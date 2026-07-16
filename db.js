@@ -38,7 +38,7 @@ async function initDb() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id VARCHAR(36) PRIMARY KEY,
-      email VARCHAR(255) UNIQUE NOT NULL,
+      username VARCHAR(255) UNIQUE NOT NULL,
       password_hash VARCHAR(255) NOT NULL,
       created_at DATETIME NOT NULL
     )
@@ -76,28 +76,28 @@ function fileStatePath(userId) {
 
 /* ---------------- public API ---------------- */
 
-async function findUserByEmail(email) {
+async function findUserByUsername(username) {
   if (USE_MYSQL) {
     const [rows] = await pool.query(
-      "SELECT id, email, password_hash AS passwordHash FROM users WHERE email = ?",
-      [email]
+      "SELECT id, username, password_hash AS passwordHash FROM users WHERE username = ?",
+      [username]
     );
     return rows[0] || null;
   }
   const users = fileReadUsers();
-  return users.find(u => u.email === email) || null;
+  return users.find(u => u.username === username) || null;
 }
 
-async function createUser({ id, email, passwordHash, createdAt }) {
+async function createUser({ id, username, passwordHash, createdAt }) {
   if (USE_MYSQL) {
     await pool.query(
-      "INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
-      [id, email, passwordHash, new Date(createdAt)]
+      "INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)",
+      [id, username, passwordHash, new Date(createdAt)]
     );
     return;
   }
   const users = fileReadUsers();
-  users.push({ id, email, passwordHash, createdAt });
+  users.push({ id, username, passwordHash, createdAt });
   await fileWriteUsers(users);
 }
 
@@ -129,4 +129,4 @@ async function writeState(userId, payload) {
   );
 }
 
-module.exports = { initDb, findUserByEmail, createUser, readState, writeState, USE_MYSQL };
+module.exports = { initDb, findUserByUsername, createUser, readState, writeState, USE_MYSQL };
